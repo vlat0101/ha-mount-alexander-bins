@@ -1,4 +1,5 @@
 """API client for Mount Alexander Shire waste collection."""
+import json
 import logging
 from datetime import datetime
 import aiohttp
@@ -23,7 +24,10 @@ class MountAlexanderBinsAPI:
                 API_AUTOCOMPLETE, params={"q": query}
             ) as response:
                 response.raise_for_status()
-                results = await response.json()
+                # Get text first, then parse as JSON manually
+                # because the API returns JSON with wrong Content-Type header
+                text = await response.text()
+                results = json.loads(text)
                 
                 if not results:
                     return []
@@ -87,9 +91,3 @@ class MountAlexanderBinsAPI:
                     if bin_type:
                         bins[bin_type] = {
                             "name": bin_name,
-                            "next_collection": next_date,
-                        }
-                except ValueError as err:
-                    _LOGGER.warning("Could not parse date '%s': %s", date_text, err)
-
-        return bins
