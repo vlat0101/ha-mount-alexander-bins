@@ -1,9 +1,13 @@
 """Config flow for Mount Alexander Bins integration."""
+from __future__ import annotations
+
 import logging
 from typing import Any
 
 import voluptuous as vol
+
 from homeassistant import config_entries
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -18,15 +22,15 @@ class MountAlexanderBinsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the config flow."""
-        self.address_results = []
+        self.address_results: list[dict[str, Any]] = []
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Handle the initial step."""
-        errors = {}
+        errors: dict[str, str] = {}
 
         if user_input is not None:
             session = async_get_clientsession(self.hass)
@@ -83,7 +87,9 @@ class MountAlexanderBinsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     )
 
         # Create options for dropdown
-        address_options = {result["address"]: result["address"] for result in self.address_results}
+        address_options = {
+            result["address"]: result["address"] for result in self.address_results
+        }
 
         return self.async_show_form(
             step_id="select_address",

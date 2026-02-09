@@ -68,26 +68,4 @@ class MountAlexanderBinsAPI:
             if not bin_name_elem:
                 continue
 
-            bin_name = bin_name_elem.text.strip()
-            
-            # Extract next collection date
-            date_elem = bin_div.find("p", class_="mb-0")
-            if date_elem:
-                date_text = date_elem.text.strip()
-                
-                # Parse date (format: "Monday, 10 February 2025")
-                try:
-                    next_date = datetime.strptime(date_text, "%A, %d %B %Y").date()
-                    
-                    # Determine bin type
-                    bin_type = None
-                    if "garbage" in bin_name.lower() or "red" in bin_name.lower():
-                        bin_type = "garbage"
-                    elif "recycling" in bin_name.lower() or "yellow" in bin_name.lower():
-                        bin_type = "recycling"
-                    elif "organics" in bin_name.lower() or "green" in bin_name.lower():
-                        bin_type = "organics"
-                    
-                    if bin_type:
-                        bins[bin_type] = {
-                            "name": bin_name,
+            bin_name = bin_nam
