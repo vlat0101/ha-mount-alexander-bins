@@ -1,0 +1,24 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Mount Alexander Bins",
+        "description": "Enter your property address to set up bin collection tracking.",
+        "data": {
+          "address": "Address"
+        }
+      },
+      "select_address": {
+        "title": "Select Your Address",
+        "description": "Multiple addresses were found. Please select yours.",
+        "data": {
+          "selected_address": "Select Address"
+        }
+      }
+    },
+    "error": {
+      "no_results": "No addresses found matching your search. Please try again.",
+      "unknown": "An unexpected error occurred. Please try again."
+    }
+  }
+}

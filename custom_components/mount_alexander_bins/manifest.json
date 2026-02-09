@@ -1,0 +1,12 @@
+{
+  "domain": "mount_alexander_bins",
+  "name": "Mount Alexander Bins",
+  "codeowners": ["@yourusername"],
+  "config_flow": true,
+  "documentation": "https://github.com/yourusername/ha-mount-alexander-bins",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/yourusername/ha-mount-alexander-bins/issues",
+  "requirements": ["beautifulsoup4==4.12.3"],
+  "version": "1.0.0"
+}
