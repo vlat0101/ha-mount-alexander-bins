@@ -32,7 +32,7 @@ A custom Home Assistant integration for tracking bin collection schedules for Mo
 1. Go to **Settings** → **Devices & Services**
 2. Click **+ Add Integration**
 3. Search for "Mount Alexander Bins"
-4. Enter your property address (e.g., "1715 Pyrenees Hwy, McKenzie Hill")
+4. Enter your property address (e.g., "123 Main St Castlemaine")
 5. Select your address if multiple results appear
 6. Done! Your sensors will appear automatically
 
