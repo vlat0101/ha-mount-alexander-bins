@@ -17,7 +17,7 @@ A custom Home Assistant integration for tracking bin collection schedules for Mo
 1. Open HACS in Home Assistant
 2. Click the three dots in the top right corner
 3. Select "Custom repositories"
-4. Add this repository URL: `https://github.com/yourusername/ha-mount-alexander-bins`
+4. Add this repository URL: `https://github.com/vlat0101/ha-mount-alexander-bins`
 5. Select category "Integration"
 6. Click "Install"
 7. Restart Home Assistant
