@@ -2,6 +2,7 @@
 import json
 import logging
 from datetime import datetime
+from urllib.parse import urlencode
 import aiohttp
 from bs4 import BeautifulSoup
 
@@ -24,26 +25,34 @@ class MountAlexanderBinsAPI:
     async def search_address(self, query: str) -> list[dict]:
         """Search for addresses matching the query."""
         try:
-            _LOGGER.debug("Searching for address: %s", query)
+            # Manually construct URL to avoid any URL encoding issues
+            url = f"{API_AUTOCOMPLETE}?{urlencode({'q': query})}"
+            
+            _LOGGER.debug("Searching URL: %s", url)
             
             async with self.session.get(
-                API_AUTOCOMPLETE,
-                params={"q": query},
+                url,
                 headers=self.headers,
                 timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
                 _LOGGER.debug("Response status: %s", response.status)
+                _LOGGER.debug("Response URL: %s", response.url)
                 response.raise_for_status()
                 
                 # Get text first, then parse as JSON manually
                 # because the API returns JSON with wrong Content-Type header
                 text = await response.text()
                 
-                _LOGGER.debug("API raw response: %s", text)
+                _LOGGER.debug("API raw response (first 200 chars): %s", text[:200])
                 
                 # Handle empty response
                 if not text or text.strip() == "":
                     _LOGGER.warning("Empty response from API for query: %s", query)
+                    return []
+                
+                # Check if we got HTML instead of JSON (API error)
+                if text.strip().startswith("<!DOCTYPE") or text.strip().startswith("<html"):
+                    _LOGGER.error("Received HTML instead of JSON. API may be down or URL is wrong. URL: %s", url)
                     return []
                 
                 try:
