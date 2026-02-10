@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Search Address",
+        "description": "Enter your street address to find your bin collection schedule.",
+        "data": {
+          "address": "Address"
+        }
+      },
+      "select": {
+        "title": "Select Address",
+        "description": "Multiple addresses found. Please select yours.",
+        "data": {
+          "property_id": "Address"
+        }
+      },
+      "confirm": {
+        "title": "Confirm Address",
+        "description": "Set up bin collection tracking for:\n\n**{address}**\n\nPress Submit to confirm."
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to the Mount Alexander council website. Please try again later.",
+      "no_results": "No addresses found. Try a more specific search (e.g. '120 Barker St Castlemaine').",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This address is already configured.",
+      "cannot_connect": "Unable to connect to the waste collection service.",
+      "no_address_selected": "No address was selected.",
+      "no_services": "No bin collection services found for this address."
+    }
+  }
+}
