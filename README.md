@@ -23,21 +23,23 @@ A [Home Assistant](https://www.home-assistant.io/) custom integration that track
 
 ### Manual Installation
 
-1. Copy the `mount_alexander_bins` folder to your `custom_components` directory:
+1. Download the [latest release](https://github.com/vlat0101/ha-mount-alexander-bins/releases) or clone the repository
+2. Copy the `custom_components/mount_alexander_bins` folder into your Home Assistant `custom_components` directory:
    ```
-   custom_components/
-   └── mount_alexander_bins/
-       ├── __init__.py
-       ├── api.py
-       ├── config_flow.py
-       ├── const.py
-       ├── manifest.json
-       ├── sensor.py
-       ├── strings.json
-       └── translations/
-           └── en.json
+   config/
+   └── custom_components/
+       └── mount_alexander_bins/
+           ├── __init__.py
+           ├── api.py
+           ├── config_flow.py
+           ├── const.py
+           ├── manifest.json
+           ├── sensor.py
+           ├── strings.json
+           └── translations/
+               └── en.json
    ```
-2. Restart Home Assistant
+3. Restart Home Assistant
 
 ## Setup
 
