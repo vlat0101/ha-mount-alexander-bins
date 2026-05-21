@@ -7,7 +7,6 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -47,14 +46,14 @@ class MountAlexanderBinsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         title=self.address_results[0]["address"],
                         data={
                             "address": self.address_results[0]["address"],
-                            "property_id": self.address_results[0]["property_id"],
+                            "geolocation_id": self.address_results[0]["geolocation_id"],
                         },
                     )
                 else:
                     # Multiple results, let user choose
                     return await self.async_step_select_address()
 
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
 
@@ -74,7 +73,7 @@ class MountAlexanderBinsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Handle address selection when multiple results are found."""
         if user_input is not None:
             selected_address = user_input["selected_address"]
-            
+
             # Find the selected property
             for result in self.address_results:
                 if result["address"] == selected_address:
@@ -82,7 +81,7 @@ class MountAlexanderBinsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         title=result["address"],
                         data={
                             "address": result["address"],
-                            "property_id": result["property_id"],
+                            "geolocation_id": result["geolocation_id"],
                         },
                     )
 

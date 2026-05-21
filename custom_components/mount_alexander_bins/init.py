@@ -1,8 +1,6 @@
 """The Mount Alexander Bins integration."""
 import logging
-from datetime import timedelta
 
-import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -25,7 +23,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = MountAlexanderBinsDataUpdateCoordinator(
         hass,
         api=api,
-        property_id=entry.data["property_id"],
+        geolocation_id=entry.data["geolocation_id"],
     )
 
     await coordinator.async_config_entry_first_refresh()
@@ -53,7 +51,7 @@ class MountAlexanderBinsDataUpdateCoordinator(DataUpdateCoordinator):
         self,
         hass: HomeAssistant,
         api: MountAlexanderBinsAPI,
-        property_id: str,
+        geolocation_id: str,
     ) -> None:
         """Initialize."""
         super().__init__(
@@ -63,11 +61,11 @@ class MountAlexanderBinsDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=SCAN_INTERVAL,
         )
         self.api = api
-        self.property_id = property_id
+        self.geolocation_id = geolocation_id
 
     async def _async_update_data(self):
         """Update data via API."""
         try:
-            return await self.api.get_collection_details(self.property_id)
+            return await self.api.get_collection_details(self.geolocation_id)
         except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err

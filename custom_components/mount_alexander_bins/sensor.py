@@ -1,5 +1,5 @@
 """Sensor platform for Mount Alexander Bins integration."""
-from datetime import date, datetime
+from datetime import date
 import logging
 
 from homeassistant.components.sensor import SensorEntity
@@ -56,7 +56,7 @@ class MountAlexanderBinSensor(CoordinatorEntity, SensorEntity):
     def state(self) -> str | None:
         """Return the state of the sensor."""
         if self.bin_type not in self.coordinator.data:
-            return None
+            return "Unknown"
 
         next_collection = self.coordinator.data[self.bin_type]["next_collection"]
         return next_collection.strftime("%A, %d %B %Y")
@@ -112,7 +112,7 @@ class NextCollectionSensor(CoordinatorEntity, SensorEntity):
     def state(self) -> str | None:
         """Return the state of the sensor."""
         if not self.coordinator.data:
-            return None
+            return "Unknown"
 
         # Find the soonest collection date
         next_date = None
@@ -123,7 +123,7 @@ class NextCollectionSensor(CoordinatorEntity, SensorEntity):
 
         if next_date:
             return next_date.strftime("%A, %d %B %Y")
-        return None
+        return "Unknown"
 
     @property
     def extra_state_attributes(self) -> dict:
@@ -174,4 +174,3 @@ class NextCollectionSensor(CoordinatorEntity, SensorEntity):
             "reminder": reminder,
             "next_collection_date": next_date.isoformat(),
         }
-``
