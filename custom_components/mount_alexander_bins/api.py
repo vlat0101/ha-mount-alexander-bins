@@ -19,7 +19,7 @@ class MountAlexanderBinsAPI:
     2. Waste services lookup by geolocation ID
     """
 
-    def __init__(self, session: aiohttp.ClientSession):
+    def __init__(self, session: aiohttp.ClientSession) -> None:
         """Initialize the API client."""
         self.session = session
         self.headers = {
@@ -68,7 +68,7 @@ class MountAlexanderBinsAPI:
         except aiohttp.ClientError as err:
             _LOGGER.error("Network error searching address: %s", err)
             raise
-        except Exception as err:
+        except Exception:
             _LOGGER.exception("Unexpected error searching address")
             raise
 
@@ -99,7 +99,7 @@ class MountAlexanderBinsAPI:
         except aiohttp.ClientError as err:
             _LOGGER.error("Network error getting collection details: %s", err)
             raise
-        except Exception as err:
+        except Exception:
             _LOGGER.exception("Error getting collection details")
             raise
 
@@ -115,7 +115,7 @@ class MountAlexanderBinsAPI:
         </div>
         """
         soup = BeautifulSoup(html, "html.parser")
-        bins = {}
+        bins: dict[str, dict[str, any]] = {}
 
         # Check for no-results
         if soup.select_one(".no-results"):

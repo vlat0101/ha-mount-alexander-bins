@@ -4,7 +4,7 @@ A custom Home Assistant integration for tracking bin collection schedules for Mo
 
 ## Features
 
-- 🗑️ Track Garbage (Red), Recycling (Yellow), and Organics (Green) bin collections
+- 🗑️ Track Garbage (Red) and Recycling (Yellow) bin collections
 - 📅 Automatic updates twice daily
 - 🔔 Rich attributes for automations (days until collection, urgency levels)
 - 🎨 Easy configuration through Home Assistant UI
@@ -17,7 +17,7 @@ A custom Home Assistant integration for tracking bin collection schedules for Mo
 1. Open HACS in Home Assistant
 2. Click the three dots in the top right corner
 3. Select "Custom repositories"
-4. Add this repository URL: `https://github.com/vlat0101/ha-mount-alexander-bins`
+4. Add this repository URL: `https://git.zxc.com.au/vlat/ha-mount-alexander-bins`
 5. Select category "Integration"
 6. Click "Install"
 7. Restart Home Assistant
@@ -53,7 +53,6 @@ The integration creates the following sensors:
 ### Individual Bin Sensors
 - **Garbage Bin**: `sensor.garbage_bin`
 - **Recycling Bin**: `sensor.recycling_bin`
-- **Organics Bin**: `sensor.organics_bin`
 
 Each includes:
 - Next collection date
@@ -79,23 +78,6 @@ action:
     data:
       title: "Bin Night Tomorrow!"
       message: "Put out: {{ state_attr('sensor.next_bin_collection', 'bin_names') }}"
-```
-
-### Morning Announcement on Collection Day
-```yaml
-alias: Bin Collection Day Announcement
-trigger:
-  - platform: time
-    at: "07:00:00"
-condition:
-  - condition: state
-    entity_id: sensor.next_bin_collection
-    attribute: days_until
-    state: "0"
-action:
-  - service: tts.google_translate_say
-    data:
-      message: "Today is bin collection day. Don't forget the {{ state_attr('sensor.next_bin_collection', 'bin_names') }}."
 ```
 
 ### Smart Light Notification
@@ -129,69 +111,12 @@ entities:
   - entity: sensor.recycling_bin
     secondary_info: attribute
     attribute: reminder
-  - entity: sensor.organics_bin
-    secondary_info: attribute
-    attribute: reminder
 ```
 
 ## Support
 
-For issues, feature requests, or questions, please [open an issue](https://github.com/yourusername/ha-mount-alexander-bins/issues).
+For issues, feature requests, or questions, please [open an issue](https://git.zxc.com.au/vlat/ha-mount-alexander-bins/issues).
 
 ## License
 
-MIT License - see LICENSE file for details
-```
-
----
-
-## **FILE 9: LICENSE**
-```
 MIT License
-
-Copyright (c) 2025
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
----
-
-## **FILE 10: .gitignore**
-```
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Distribution / packaging
-.Python
-build/
-dist/
-*.egg-info/
-
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db

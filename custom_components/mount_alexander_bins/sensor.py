@@ -1,6 +1,6 @@
 """Sensor platform for Mount Alexander Bins integration."""
-from datetime import date
 import logging
+from datetime import datetime, timezone
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -24,13 +24,11 @@ async def async_setup_entry(
         entry.entry_id
     ]
 
-    entities = []
-
-    # Add individual bin sensors for each available bin type
-    for bin_type in coordinator.data:
-        entities.append(MountAlexanderBinSensor(coordinator, entry, bin_type))
-
-    # Add a "next collection" sensor
+    # Add individual bin sensors for each available bin type + next collection sensor
+    entities = [
+        MountAlexanderBinSensor(coordinator, entry, bin_type)
+        for bin_type in coordinator.data
+    ]
     entities.append(NextCollectionSensor(coordinator, entry))
 
     async_add_entities(entities)
@@ -68,7 +66,7 @@ class MountAlexanderBinSensor(CoordinatorEntity, SensorEntity):
             return {}
 
         next_collection = self.coordinator.data[self.bin_type]["next_collection"]
-        today = date.today()
+        today = datetime.now(tz=timezone.utc).date()
         days_until = (next_collection - today).days
 
         # Determine urgency level
@@ -146,7 +144,7 @@ class NextCollectionSensor(CoordinatorEntity, SensorEntity):
         if not next_date:
             return {}
 
-        today = date.today()
+        today = datetime.now(tz=timezone.utc).date()
         days_until = (next_date - today).days
 
         # Determine urgency level

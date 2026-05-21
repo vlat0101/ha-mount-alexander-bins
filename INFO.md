@@ -5,14 +5,14 @@ Track your bin collection schedule for Mount Alexander Shire Council.
 ## Features
 
 - Automatic bin collection tracking
-- Supports Garbage, Recycling, and Organics bins
-- Updates twice daily
+- Supports Garbage and Recycling bins
+- Twice-daily updates
 - Rich attributes for automations
 - Easy setup through UI
 
 ## Setup
 
-1. Install through HACS
+1. Install through HACS using repo: `https://git.zxc.com.au/vlat/ha-mount-alexander-bins`
 2. Restart Home Assistant
 3. Go to Settings → Devices & Services
 4. Add "Mount Alexander Bins"
@@ -25,4 +25,4 @@ Set up automations to:
 - Flash lights on collection day
 - Send reminders to your phone
 
-For more information, see the [full documentation](https://github.com/yourusername/ha-mount-alexander-bins).
+For more information, see the full repository documentation.

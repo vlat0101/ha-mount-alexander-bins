@@ -68,4 +68,5 @@ class MountAlexanderBinsDataUpdateCoordinator(DataUpdateCoordinator):
         try:
             return await self.api.get_collection_details(self.geolocation_id)
         except Exception as err:
-            raise UpdateFailed(f"Error communicating with API: {err}") from err
+            msg = f"Error communicating with API: {err}"
+            raise UpdateFailed(msg) from err
