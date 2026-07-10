@@ -2,29 +2,41 @@
 from datetime import timedelta
 
 DOMAIN = "mount_alexander_bins"
-DEFAULT_NAME = "Mount Alexander Bins"
 
-# API Configuration
+# Config keys
+CONF_PROPERTY_ID = "property_id"
+CONF_ADDRESS = "address"
+
+# API Configuration — uses the council's own website API
 API_BASE_URL = "https://www.mountalexander.vic.gov.au"
-API_ADDRESS_SEARCH = f"{API_BASE_URL}/api/v1/myarea/searchfuzzy"
+API_SEARCH = f"{API_BASE_URL}/api/v1/myarea/search"
 API_WASTE_SERVICES = f"{API_BASE_URL}/ocapi/Public/myarea/wasteservices"
 
 # Update interval
 SCAN_INTERVAL = timedelta(hours=12)
 
-# Bin types with their colors and icons
-# Note: Mount Alexander Shire only has General Waste and Recycling (no organics)
+# Bin types
+BIN_GARBAGE = "garbage"
+BIN_RECYCLING = "recycling"
+
 BIN_TYPES = {
-    "garbage": {
+    BIN_GARBAGE: {
         "name": "General Waste",
-        "color": "Red",
         "icon": "mdi:trash-can",
-        "html_class": "general-waste",
+        "color": "red",
     },
-    "recycling": {
+    BIN_RECYCLING: {
         "name": "Recycling",
-        "color": "Yellow",
         "icon": "mdi:recycle",
-        "html_class": "recycling",
+        "color": "yellow",
     },
+}
+
+# Mapping from HTML <h3> text to our bin type keys (case-insensitive)
+BIN_NAME_MAPPING = {
+    "general waste": BIN_GARBAGE,
+    "garbage": BIN_GARBAGE,
+    "rubbish": BIN_GARBAGE,
+    "recycling": BIN_RECYCLING,
+    "recycle": BIN_RECYCLING,
 }

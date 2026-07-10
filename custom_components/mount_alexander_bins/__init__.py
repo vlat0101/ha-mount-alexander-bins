@@ -8,7 +8,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MountAlexanderBinsAPI
-from .const import DOMAIN, SCAN_INTERVAL
+from .const import CONF_ADDRESS, CONF_PROPERTY_ID, DOMAIN, SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,12 +18,15 @@ PLATFORMS = [Platform.SENSOR]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Mount Alexander Bins from a config entry."""
     session = async_get_clientsession(hass)
-    api = MountAlexanderBinsAPI(session)
+    api = MountAlexanderBinsAPI(
+        session,
+        property_id=entry.data[CONF_PROPERTY_ID],
+    )
+    api.address = entry.data.get(CONF_ADDRESS)
 
     coordinator = MountAlexanderBinsDataUpdateCoordinator(
         hass,
         api=api,
-        geolocation_id=entry.data["geolocation_id"],
     )
 
     await coordinator.async_config_entry_first_refresh()
@@ -51,7 +54,6 @@ class MountAlexanderBinsDataUpdateCoordinator(DataUpdateCoordinator):
         self,
         hass: HomeAssistant,
         api: MountAlexanderBinsAPI,
-        geolocation_id: str,
     ) -> None:
         """Initialize."""
         super().__init__(
@@ -61,12 +63,11 @@ class MountAlexanderBinsDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=SCAN_INTERVAL,
         )
         self.api = api
-        self.geolocation_id = geolocation_id
 
     async def _async_update_data(self):
         """Update data via API."""
         try:
-            return await self.api.get_collection_details(self.geolocation_id)
+            return await self.api.get_collection_schedule()
         except Exception as err:
             msg = f"Error communicating with API: {err}"
             raise UpdateFailed(msg) from err

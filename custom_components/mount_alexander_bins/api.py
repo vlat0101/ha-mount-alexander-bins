@@ -1,166 +1,210 @@
-"""API client for Mount Alexander Shire waste collection."""
+"""API client for Mount Alexander Shire Council bin collection.
+
+Uses the council's own website API:
+  1. /api/v1/myarea/search?keywords=...  → address search (JSON)
+  2. /ocapi/Public/myarea/wasteservices?geolocationid=GUID  → bin schedule (JSON with HTML payload)
+
+Auto-recovery: if the stored property ID returns "no results", the client
+re-runs the address search to find the current ID and retries once.
+"""
 import logging
+import re
 from datetime import datetime
-from urllib.parse import urlencode
 
 import aiohttp
 from bs4 import BeautifulSoup
 
-from .const import API_ADDRESS_SEARCH, API_WASTE_SERVICES
+from .const import API_SEARCH, API_WASTE_SERVICES, BIN_NAME_MAPPING
 
 _LOGGER = logging.getLogger(__name__)
 
+_TIMEOUT = aiohttp.ClientTimeout(total=15)
+
+# Headers the council site expects (same-origin XHR)
+_HEADERS = {
+    "x-requested-with": "XMLHttpRequest",
+}
+
 
 class MountAlexanderBinsAPI:
-    """API client for Mount Alexander Bins.
+    """API client for Mount Alexander Bins."""
 
-    Uses the council's OpenCities/Granicus "My Neighbourhood" module API:
-    1. Address search → geolocation ID
-    2. Waste services lookup by geolocation ID
-    """
-
-    def __init__(self, session: aiohttp.ClientSession) -> None:
+    def __init__(self, session: aiohttp.ClientSession, property_id: str | None = None) -> None:
         """Initialize the API client."""
         self.session = session
-        self.headers = {
-            "Accept": "application/json, text/plain, */*",
-        }
+        self.property_id = property_id
+        self.address: str | None = None
 
-    async def search_address(self, query: str) -> list[dict]:
+    # ── Config-flow: address search ──────────────────────────────
+
+    async def search_addresses(self, query: str) -> list[dict]:
         """Search for addresses matching the query.
 
-        Returns list of {address, geolocation_id} dicts.
+        Returns list of dicts with 'Id' and 'AddressSingleLine' keys.
         """
         try:
-            params = {"keywords": query, "maxresults": 10}
-            url = f"{API_ADDRESS_SEARCH}?{urlencode(params)}"
-
-            _LOGGER.debug("Searching address: %s", query)
-
             async with self.session.get(
-                url,
-                headers=self.headers,
-                timeout=aiohttp.ClientTimeout(total=15),
-            ) as response:
-                response.raise_for_status()
-                data = await response.json()
+                API_SEARCH,
+                params={"keywords": query},
+                headers=_HEADERS,
+                timeout=_TIMEOUT,
+            ) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                return data.get("Items", [])
+        except (aiohttp.ClientError, TimeoutError) as err:
+            _LOGGER.error("Error searching addresses: %s", err)
+            raise
 
-                items = data.get("Items", [])
-                if not items:
-                    _LOGGER.debug("No addresses found for: %s", query)
-                    return []
+    # ── Data fetching (for coordinator) ──────────────────────────
 
-                results = []
-                for item in items:
-                    results.append({
-                        "address": item["AddressSingleLine"],
-                        "geolocation_id": item["Id"],
-                    })
-                    _LOGGER.debug(
-                        "Found: %s (ID: %s)",
-                        item["AddressSingleLine"],
-                        item["Id"],
+    async def get_collection_schedule(self) -> dict[str, str]:
+        """Get upcoming bin collection dates for the configured property.
+
+        Returns dict mapping bin type keys (e.g. 'garbage') to ISO date
+        strings (e.g. '2026-02-11').
+
+        Auto-recovery: if the stored property ID returns no results, the
+        address search is re-run to find the current ID and the request
+        is retried once.
+        """
+        if not self.property_id:
+            raise ValueError("property_id is required")
+
+        result = await self._fetch_schedule(self.property_id)
+
+        # Auto-recovery: empty result + we have an address to search
+        if not result and self.address:
+            _LOGGER.warning(
+                "No collection data for property %s, re-resolving address '%s'",
+                self.property_id,
+                self.address,
+            )
+            new_id = await self._resolve_property_id(self.address)
+            if new_id and new_id != self.property_id:
+                _LOGGER.info(
+                    "Property ID changed: %s → %s, retrying",
+                    self.property_id,
+                    new_id,
+                )
+                self.property_id = new_id
+                result = await self._fetch_schedule(new_id)
+                if result:
+                    _LOGGER.info(
+                        "Auto-recovery succeeded with new property ID %s",
+                        new_id,
                     )
 
-                return results
+        return result
 
-        except aiohttp.ClientError as err:
-            _LOGGER.error("Network error searching address: %s", err)
-            raise
-        except Exception:
-            _LOGGER.exception("Unexpected error searching address")
-            raise
-
-    async def get_collection_details(self, geolocation_id: str) -> dict:
-        """Get bin collection details for a geolocation ID.
-
-        Returns dict keyed by bin type (garbage, recycling) with next collection dates.
-        """
+    async def _fetch_schedule(self, property_id: str) -> dict[str, str]:
+        """Fetch and parse the waste services HTML for a property ID."""
         try:
-            params = {
-                "geolocationid": geolocation_id,
-                "ocsvclang": "en-AU",
-            }
-            url = f"{API_WASTE_SERVICES}?{urlencode(params)}"
-
-            _LOGGER.debug("Getting collection details for: %s", geolocation_id)
-
             async with self.session.get(
-                url,
-                headers=self.headers,
-                timeout=aiohttp.ClientTimeout(total=15),
-            ) as response:
-                response.raise_for_status()
-                data = await response.json()
-                html = data.get("responseContent", "")
-                return self._parse_collection_html(html)
-
-        except aiohttp.ClientError as err:
-            _LOGGER.error("Network error getting collection details: %s", err)
+                API_WASTE_SERVICES,
+                params={
+                    "geolocationid": property_id,
+                    "ocsvclang": "en-AU",
+                },
+                headers=_HEADERS,
+                timeout=_TIMEOUT,
+            ) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+        except (aiohttp.ClientError, TimeoutError) as err:
+            _LOGGER.error("Error fetching collection schedule: %s", err)
             raise
+
+        if not data.get("success"):
+            _LOGGER.error("API returned success=false")
+            return {}
+
+        html = data.get("responseContent", "")
+        return self._parse_waste_html(html)
+
+    async def _resolve_property_id(self, address: str) -> str | None:
+        """Search for an address and return the current property ID."""
+        try:
+            items = await self.search_addresses(address)
+            if items:
+                return items[0].get("Id")
         except Exception:
-            _LOGGER.exception("Error getting collection details")
-            raise
+            _LOGGER.exception("Error re-resolving address '%s'", address)
+        return None
 
-    def _parse_collection_html(self, html: str) -> dict:
-        """Parse the wasteservices HTML response.
-
-        Expected HTML structure:
-        <div class="waste-services-result {type} date-precise">
-          <article>
-            <h3>Bin Name</h3>
-            <div class="next-service">Mon 25/5/2026</div>
-          </article>
-        </div>
-        """
+    def _parse_waste_html(self, html: str) -> dict[str, str]:
+        """Parse the waste services HTML into a bin schedule dict."""
         soup = BeautifulSoup(html, "html.parser")
-        bins: dict[str, dict[str, any]] = {}
+        result: dict[str, str] = {}
 
         # Check for no-results
         if soup.select_one(".no-results"):
             _LOGGER.debug("No collection services for this address")
-            return bins
+            return result
 
-        for result_div in soup.select(".waste-services-result"):
-            if "no-results" in result_div.get("class", []):
+        for service_div in soup.find_all("div", class_="waste-services-result"):
+            # Get bin type from the <h3> heading
+            h3 = service_div.find("h3")
+            if not h3:
+                continue
+            bin_name = h3.get_text(strip=True)
+
+            bin_key = self._match_bin_type(bin_name)
+            if not bin_key:
+                _LOGGER.debug("Unknown bin type: '%s'", bin_name)
                 continue
 
-            # Get bin name from <h3>
-            name_elem = result_div.find("h3")
-            if not name_elem:
+            # Get next collection date from <div class="next-service">
+            date_div = service_div.find("div", class_="next-service")
+            if not date_div:
                 continue
-            bin_name = name_elem.text.strip()
+            date_text = date_div.get_text(strip=True)
 
-            # Get next collection date
-            date_elem = result_div.select_one(".next-service")
-            if not date_elem:
-                continue
-            date_text = date_elem.text.strip()
-            # Format: "Mon 25/5/2026"
-            try:
-                next_date = datetime.strptime(date_text, "%a %d/%m/%Y").date()
-            except ValueError:
-                _LOGGER.warning("Could not parse date: %s", date_text)
-                continue
-
-            # Determine bin type
-            if "general" in bin_name.lower() or "garbage" in bin_name.lower():
-                bin_type = "garbage"
-            elif "recycling" in bin_name.lower() or "yellow" in bin_name.lower():
-                bin_type = "recycling"
+            parsed_date = self._parse_date(date_text)
+            if parsed_date:
+                result[bin_key] = parsed_date
             else:
-                _LOGGER.debug("Unknown bin type: %s", bin_name)
+                _LOGGER.warning("Could not parse date '%s' for %s", date_text, bin_name)
+
+        _LOGGER.debug("Parsed collection schedule: %s", result)
+        return result
+
+    @staticmethod
+    def _match_bin_type(name: str) -> str | None:
+        """Match an HTML heading to a bin type key."""
+        name_lower = name.lower().strip()
+        for keyword, bin_key in BIN_NAME_MAPPING.items():
+            if keyword in name_lower:
+                return bin_key
+        return None
+
+    @staticmethod
+    def _parse_date(text: str) -> str | None:
+        """Parse a date like 'Wed 11/2/2026' or 'Mon 16/2/2026' to 'YYYY-MM-DD'."""
+        # Strip optional day name prefix (e.g. "Wed ", "Mon ")
+        cleaned = re.sub(r"^[A-Za-z]+\s+", "", text.strip())
+
+        # Try D/M/YYYY and DD/MM/YYYY
+        for fmt in ("%d/%m/%Y", "%d/%m/%y"):
+            try:
+                return datetime.strptime(cleaned, fmt).strftime("%Y-%m-%d")
+            except ValueError:
                 continue
 
-            bins[bin_type] = {
-                "name": bin_name,
-                "next_collection": next_date,
-            }
-            _LOGGER.debug(
-                "Found bin: %s, next collection: %s",
-                bin_type,
-                next_date,
-            )
+        # Fallback: try full text with day name
+        for fmt in ("%a %d/%m/%Y", "%A %d/%m/%Y"):
+            try:
+                return datetime.strptime(text.strip(), fmt).strftime("%Y-%m-%d")
+            except ValueError:
+                continue
 
-        _LOGGER.debug("Total bins found: %d", len(bins))
-        return bins
+        return None
+
+    async def test_connection(self) -> bool:
+        """Test if we can fetch data for the configured property."""
+        try:
+            schedule = await self.get_collection_schedule()
+            return isinstance(schedule, dict) and len(schedule) > 0
+        except Exception:
+            _LOGGER.exception("Connection test failed")
+            return False

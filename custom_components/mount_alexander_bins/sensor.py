@@ -1,15 +1,19 @@
 """Sensor platform for Mount Alexander Bins integration."""
+from __future__ import annotations
+
+from datetime import datetime, date
 import logging
-from datetime import datetime, timezone
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+)
 
-from . import MountAlexanderBinsDataUpdateCoordinator
-from .const import BIN_TYPES, DOMAIN
+from .const import BIN_TYPES, CONF_ADDRESS, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -19,156 +23,175 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Mount Alexander Bins sensors."""
-    coordinator: MountAlexanderBinsDataUpdateCoordinator = hass.data[DOMAIN][
-        entry.entry_id
-    ]
+    """Set up the sensor platform."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    address = entry.data.get(CONF_ADDRESS, "Unknown")
 
-    # Add individual bin sensors for each available bin type + next collection sensor
-    entities = [
-        MountAlexanderBinSensor(coordinator, entry, bin_type)
-        for bin_type in coordinator.data
-    ]
-    entities.append(NextCollectionSensor(coordinator, entry))
+    entities = []
+
+    # Create a sensor for each bin type that appears in the data
+    # Also create sensors for standard types even if not yet in data
+    known_types = set(BIN_TYPES.keys())
+    if coordinator.data:
+        known_types.update(coordinator.data.keys())
+
+    for bin_key in known_types:
+        bin_info = BIN_TYPES.get(bin_key, {
+            "name": bin_key.replace("_", " ").title(),
+            "icon": "mdi:trash-can",
+            "color": "unknown",
+        })
+        entities.append(
+            BinCollectionSensor(coordinator, entry, bin_key, bin_info, address)
+        )
+
+    # Add a "next bin" summary sensor
+    entities.append(NextBinSensor(coordinator, entry, address))
 
     async_add_entities(entities)
 
 
-class MountAlexanderBinSensor(CoordinatorEntity, SensorEntity):
-    """Representation of a bin collection sensor."""
+class BinCollectionSensor(CoordinatorEntity, SensorEntity):
+    """Sensor for an individual bin type."""
+
+    _attr_has_entity_name = True
 
     def __init__(
         self,
-        coordinator: MountAlexanderBinsDataUpdateCoordinator,
+        coordinator: DataUpdateCoordinator,
         entry: ConfigEntry,
-        bin_type: str,
+        bin_key: str,
+        bin_info: dict,
+        address: str,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self.bin_type = bin_type
-        self._attr_unique_id = f"{entry.entry_id}_{bin_type}"
-        self._attr_name = f"{BIN_TYPES[bin_type]['name']} Bin"
-        self._attr_icon = BIN_TYPES[bin_type]["icon"]
+        self._bin_key = bin_key
+        self._bin_info = bin_info
+        self._attr_unique_id = f"{entry.entry_id}_{bin_key}"
+        self._attr_name = f"{bin_info['name']} Bin"
+        self._attr_icon = bin_info["icon"]
 
     @property
-    def state(self) -> str | None:
-        """Return the state of the sensor."""
-        if self.bin_type not in self.coordinator.data:
-            return "Unknown"
-
-        next_collection = self.coordinator.data[self.bin_type]["next_collection"]
-        return next_collection.strftime("%A, %d %B %Y")
+    def native_value(self) -> str | None:
+        """Return the next collection date."""
+        if self.coordinator.data and self._bin_key in self.coordinator.data:
+            return self.coordinator.data[self._bin_key]
+        return None
 
     @property
     def extra_state_attributes(self) -> dict:
-        """Return additional attributes."""
-        if self.bin_type not in self.coordinator.data:
-            return {}
-
-        next_collection = self.coordinator.data[self.bin_type]["next_collection"]
-        today = datetime.now(tz=timezone.utc).date()
-        days_until = (next_collection - today).days
-
-        # Determine urgency level
-        if days_until == 0:
-            urgency = "critical"
-            reminder = "Collection is TODAY!"
-        elif days_until == 1:
-            urgency = "high"
-            reminder = "Collection is TOMORROW!"
-        elif days_until <= 3:
-            urgency = "normal"
-            reminder = f"Collection in {days_until} days"
-        else:
-            urgency = "low"
-            reminder = f"Collection in {days_until} days"
-
-        return {
-            "days_until": days_until,
-            "urgency": urgency,
-            "reminder": reminder,
-            "next_collection_date": next_collection.isoformat(),
-            "bin_color": BIN_TYPES[self.bin_type]["color"],
+        """Return extra attributes."""
+        attrs = {
+            "bin_color": self._bin_info.get("color", "unknown"),
+            "bin_type": self._bin_info.get("name", self._bin_key),
         }
 
+        collection_date = self.native_value
+        if collection_date:
+            try:
+                dt = datetime.strptime(collection_date, "%Y-%m-%d").date()
+                today = date.today()
+                days_until = (dt - today).days
+                attrs["days_until_collection"] = days_until
 
-class NextCollectionSensor(CoordinatorEntity, SensorEntity):
-    """Sensor showing the next bin collection (any bin type)."""
+                if days_until == 0:
+                    attrs["collection_status"] = "today"
+                elif days_until == 1:
+                    attrs["collection_status"] = "tomorrow"
+                elif days_until < 0:
+                    attrs["collection_status"] = "overdue"
+                else:
+                    attrs["collection_status"] = f"in {days_until} days"
+            except ValueError:
+                pass
+
+        return attrs
+
+
+class NextBinSensor(CoordinatorEntity, SensorEntity):
+    """Sensor that shows which bin is collected next."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Next Bin Collection"
+    _attr_icon = "mdi:delete-empty"
 
     def __init__(
         self,
-        coordinator: MountAlexanderBinsDataUpdateCoordinator,
+        coordinator: DataUpdateCoordinator,
         entry: ConfigEntry,
+        address: str,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
-        self._attr_unique_id = f"{entry.entry_id}_next_collection"
-        self._attr_name = "Next Bin Collection"
-        self._attr_icon = "mdi:calendar-clock"
+        self._attr_unique_id = f"{entry.entry_id}_next_bin"
 
     @property
-    def state(self) -> str | None:
-        """Return the state of the sensor."""
+    def native_value(self) -> str | None:
+        """Return the next bin type to be collected."""
         if not self.coordinator.data:
-            return "Unknown"
+            return None
 
-        # Find the soonest collection date
+        today = date.today()
+        next_bin = None
         next_date = None
-        for bin_data in self.coordinator.data.values():
-            collection_date = bin_data["next_collection"]
-            if next_date is None or collection_date < next_date:
-                next_date = collection_date
 
+        for bin_key, date_str in self.coordinator.data.items():
+            try:
+                dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+                if dt >= today and (next_date is None or dt < next_date):
+                    next_date = dt
+                    next_bin = bin_key
+            except ValueError:
+                continue
+
+        if next_bin and next_bin in BIN_TYPES:
+            return BIN_TYPES[next_bin]["name"]
+        elif next_bin:
+            return next_bin.replace("_", " ").title()
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Return extra attributes."""
+        if not self.coordinator.data:
+            return {}
+
+        today = date.today()
+        next_bin = None
+        next_date = None
+
+        for bin_key, date_str in self.coordinator.data.items():
+            try:
+                dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+                if dt >= today and (next_date is None or dt < next_date):
+                    next_date = dt
+                    next_bin = bin_key
+            except ValueError:
+                continue
+
+        attrs = {}
         if next_date:
-            return next_date.strftime("%A, %d %B %Y")
-        return "Unknown"
+            days_until = (next_date - today).days
+            attrs["next_collection_date"] = next_date.isoformat()
+            attrs["days_until_collection"] = days_until
 
-    @property
-    def extra_state_attributes(self) -> dict:
-        """Return additional attributes."""
-        if not self.coordinator.data:
-            return {}
+            if days_until == 0:
+                attrs["collection_status"] = "today"
+            elif days_until == 1:
+                attrs["collection_status"] = "tomorrow"
+            else:
+                attrs["collection_status"] = f"in {days_until} days"
 
-        # Find the soonest collection date and which bins
-        next_date = None
-        bins_due = []
+        if next_bin and next_bin in BIN_TYPES:
+            attrs["bin_color"] = BIN_TYPES[next_bin]["color"]
 
-        for bin_type, bin_data in self.coordinator.data.items():
-            collection_date = bin_data["next_collection"]
-            if next_date is None or collection_date < next_date:
-                next_date = collection_date
-                bins_due = [bin_type]
-            elif collection_date == next_date:
-                bins_due.append(bin_type)
+        # List all upcoming collections
+        all_upcoming = {}
+        for bin_key, date_str in self.coordinator.data.items():
+            name = BIN_TYPES.get(bin_key, {}).get("name", bin_key.replace("_", " ").title())
+            all_upcoming[name] = date_str
+        if all_upcoming:
+            attrs["all_upcoming"] = all_upcoming
 
-        if not next_date:
-            return {}
-
-        today = datetime.now(tz=timezone.utc).date()
-        days_until = (next_date - today).days
-
-        # Determine urgency level
-        if days_until == 0:
-            urgency = "critical"
-            reminder = "Collection is TODAY!"
-        elif days_until == 1:
-            urgency = "high"
-            reminder = "Collection is TOMORROW!"
-        elif days_until <= 3:
-            urgency = "normal"
-            reminder = f"Collection in {days_until} days"
-        else:
-            urgency = "low"
-            reminder = f"Collection in {days_until} days"
-
-        # Build bin names list
-        bin_names = [BIN_TYPES[bt]["name"] for bt in bins_due if bt in BIN_TYPES]
-
-        return {
-            "bins": bins_due,
-            "bin_names": ", ".join(bin_names),
-            "days_until": days_until,
-            "urgency": urgency,
-            "reminder": reminder,
-            "next_collection_date": next_date.isoformat(),
-        }
+        return attrs
